@@ -1,0 +1,21 @@
+# One Coolshop product URL per line. Blank lines and lines starting with # are ignored.
+https://www.coolshop.dk/produkt/pokemon-sv3-5-mini-tin-dragonite/23J5TQ/
+https://www.coolshop.dk/produkt/pokemon-sv3-5-mini-tin-machamp/23J5TV/
+https://www.coolshop.dk/produkt/pokemon-sv3-5-mini-tin-electaboss-magnemite/23J5TR/
+https://www.coolshop.dk/produkt/pokemon-sv3-5-mini-tin-arcanine/23J5TP/
+https://www.coolshop.dk/produkt/pokemon-scarlet-violet-3-5-151-booster-bundle-pok85321/23HA4R/
+https://www.coolshop.dk/produkt/pokemon-sv8-5-prismatic-evolutions-super-premium-collection-pok10106/23PQ9J/
+https://www.coolshop.dk/produkt/pokemon-me02-mega-evolution-phantasmal-flames-elite-trainer-box-pok10186-101/23U9WV/
+https://www.coolshop.dk/produkt/pokemon-tcg-mega-sharpedo-ex/AD9S75/
+https://www.coolshop.dk/produkt/pokemon-sv10-5-black-bolt-booster-pack-bundle-pok10115zsv/23S78T/
+https://www.coolshop.dk/produkt/pokemon-sv10-destined-rivals-elite-trainer-box-pok10652/23R8NJ/
+https://www.coolshop.dk/produkt/pokemon-sv10-5-white-flare-booster-pack-bundle-pok10035rsv/23S78R/
+https://www.coolshop.dk/produkt/pokemon-sv10-5-black-bolt-elite-trainer-box-pok10037zsv/23S78U/
+https://www.coolshop.dk/produkt/pokemon-sv10-5-white-flare-elite-trainer-box-pok10037rsv/23S79E/
+https://www.coolshop.dk/produkt/pokemon-sv8-5-prismatic-evolutions-booster-bundle-pok10113/23PQ9A/
+https://www.coolshop.dk/produkt/pokemon-sv8-5-prismatic-evolutions-poster-collection-box-pok10041/23PQ8T/
+https://www.coolshop.dk/produkt/pokemon-me01-elite-trainer/23T9PU/
+https://www.coolshop.dk/produkt/pokemon-mega-evolution-me02-5-ascended-heroes-booster-bundle-pok10311-101/23W7ZU/
+https://www.coolshop.dk/produkt/pokemon-mega-evolution-me04-chaos-rising-booster-box-pok10407-101/23W84C/
+https://www.coolshop.dk/produkt/pokemon-mega-evolution-me04-chaos-rising-elite-trainer-box-pok10399-101/23W84P/
+https://www.coolshop.dk/produkt/pokemon-mega-evolution-me04-blister-3-pack-pok10401-101/23W84K/
