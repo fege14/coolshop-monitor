@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 import random
@@ -24,6 +25,13 @@ IN_STOCK_PHRASES = ["Læg i kurv", "Afhent i butik"]
 # Phrase that indicates the product is not currently buyable.
 OUT_OF_STOCK_PHRASES = ["Se populære produkter"]
 
+# Persisted across process restarts. Without this, every fresh boot (e.g.
+# the 5h cron tick that kills the prior run via cancel-in-progress) would
+# silently baseline whatever's on the page — any URL that flipped to
+# in_stock during the cancel→restart gap would be absorbed into the new
+# baseline and never trigger a notification.
+STATE_FILE = pathlib.Path(__file__).resolve().parent / "state.json"
+
 UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -42,6 +50,31 @@ def load_urls():
 
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
+def load_state(urls):
+    last = {u: None for u in urls}
+    if not STATE_FILE.exists():
+        return last
+    try:
+        raw = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        log(f"state load failed, starting fresh: {e}")
+        return last
+    for u in urls:
+        s = raw.get("last", {}).get(u)
+        if s is not None:
+            last[u] = s
+    return last
+
+
+def save_state(last):
+    try:
+        tmp = STATE_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps({"last": last}), encoding="utf-8")
+        tmp.replace(STATE_FILE)
+    except Exception as e:
+        log(f"state save failed: {e}")
 
 
 def notify(title, message, url=None, priority="high", tags="bell,shopping_cart"):
@@ -121,7 +154,13 @@ def main():
     if not NTFY_TOPIC:
         log("WARN: NTFY_TOPIC not set — running in dry-run mode")
 
-    last = {u: None for u in urls}
+    last = load_state(urls)
+    seeded = sum(1 for v in last.values() if v is not None)
+    if seeded:
+        log(f"loaded state from {STATE_FILE.name} | {seeded}/{len(urls)} URLs")
+    else:
+        log(f"no prior state at {STATE_FILE.name} — first poll will baseline silently")
+
     stop = {"flag": False}
 
     def _stop(*_):
@@ -136,72 +175,82 @@ def main():
         else:
             route.continue_()
 
-    with sync_playwright() as pw:
-        def _new_browser():
-            br = pw.chromium.launch(headless=True)
-            c = br.new_context(
-                user_agent=UA,
-                locale="da-DK",
-                viewport={"width": 1366, "height": 900},
-            )
-            p = c.new_page()
-            p.route("**/*", _route)
-            return br, c, p
+    log(f"started | urls={len(urls)} | sweep_pause={SWEEP_PAUSE}s")
+    notify(
+        "Coolshop monitor started",
+        f"Watching {len(urls)} products",
+        priority="low",
+        tags="bell",
+    )
 
-        browser, ctx, page = _new_browser()
-        browser_started = time.time()
+    session_attempt = 0
+    while not stop["flag"]:
+        session_attempt += 1
+        try:
+            with sync_playwright() as pw:
+                def _new_browser():
+                    br = pw.chromium.launch(headless=True)
+                    c = br.new_context(
+                        user_agent=UA,
+                        locale="da-DK",
+                        viewport={"width": 1366, "height": 900},
+                    )
+                    p = c.new_page()
+                    p.route("**/*", _route)
+                    return br, c, p
 
-        log(f"started | urls={len(urls)} | sweep_pause={SWEEP_PAUSE}s")
-        notify(
-            "Coolshop monitor started",
-            f"Watching {len(urls)} products",
-            priority="low",
-            tags="bell",
-        )
-
-        while not stop["flag"]:
-            if time.time() - browser_started > _BROWSER_RECYCLE_SECONDS:
-                log("recycling browser")
-                try:
-                    browser.close()
-                except Exception as e:
-                    log(f"browser close error: {e}")
                 browser, ctx, page = _new_browser()
                 browser_started = time.time()
 
-            for url in urls:
-                if stop["flag"]:
-                    break
+                while not stop["flag"]:
+                    if time.time() - browser_started > _BROWSER_RECYCLE_SECONDS:
+                        log("recycling browser")
+                        try:
+                            browser.close()
+                        except Exception as e:
+                            log(f"browser close error: {e}")
+                        browser, ctx, page = _new_browser()
+                        browser_started = time.time()
+
+                    for url in urls:
+                        if stop["flag"]:
+                            break
+                        try:
+                            status, title = read_stock(page, url)
+                        except Exception as e:
+                            log(f"error | {url} | {e}")
+                            continue
+
+                        label = title or url
+                        prev = last[url]
+                        if prev is None:
+                            log(f"baseline {status} | {label}")
+                        elif prev != status:
+                            log(f"{prev} -> {status} | {label}")
+                            if status == "in_stock":
+                                notify(
+                                    f"IN STOCK: {title or 'Coolshop product'}",
+                                    f"{title}\n{url}" if title else url,
+                                    url=url,
+                                )
+                        else:
+                            log(f"{status} | {label}")
+                        last[url] = status
+                        save_state(last)
+
+                    if stop["flag"]:
+                        break
+                    time.sleep(SWEEP_PAUSE + random.uniform(-_JITTER_SECONDS, _JITTER_SECONDS))
+
                 try:
-                    status, title = read_stock(page, url)
-                except Exception as e:
-                    log(f"error | {url} | {e}")
-                    continue
-
-                label = title or url
-                prev = last[url]
-                if prev is None:
-                    log(f"baseline {status} | {label}")
-                elif prev != status:
-                    log(f"{prev} -> {status} | {label}")
-                    if status == "in_stock":
-                        notify(
-                            f"IN STOCK: {title or 'Coolshop product'}",
-                            f"{title}\n{url}" if title else url,
-                            url=url,
-                        )
-                else:
-                    log(f"{status} | {label}")
-                last[url] = status
-
+                    browser.close()
+                except Exception:
+                    pass
+        except Exception as e:
             if stop["flag"]:
                 break
-            time.sleep(SWEEP_PAUSE + random.uniform(-_JITTER_SECONDS, _JITTER_SECONDS))
-
-        try:
-            browser.close()
-        except Exception:
-            pass
+            log(f"session #{session_attempt} crashed, restarting in 10s: {type(e).__name__}: {e}")
+            time.sleep(10)
     log("shutdown")
     return 0
 
